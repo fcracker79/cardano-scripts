@@ -7,7 +7,6 @@ GENESIS_CONFIGURATION=$ROOT/configuration/testnet/testnet-shelley-genesis.json
 PROTOCOL_PARAMS=$ROOT/configuration/testnet/testnet-config.json
 OPERATOR_BASE_ADDRESS=$ROOT_KEYS/base.addr
 OPERATOR_STAKING_CERTIFICATE=$ROOT_KEYS/staking.cert
-OPERATOR_PAYMENT_ADDRESS=$ROOT_KEYS/op_pay.addr
 OPERATOR_PAYMENT_SIGNING_KEY=$ROOT_KEYS/op_pay.skey
 OPERATOR_STAKING_SIGNING_KEY=$ROOT_KEYS/staking.skey
 CARDANO=$ROOT/cli.sh
@@ -65,7 +64,7 @@ echo Change output: $TX_OUT
 
 $CARDANO transaction build-raw \
     $TX_IN \
-    --tx-out `cat $OPERATOR_PAYMENT_ADDRESS`+$TX_OUT \
+    --tx-out `cat $OPERATOR_BASE_ADDRESS`+$TX_OUT \
     --invalid-hereafter $(( ${CURRENT_SLOT} + 10000)) \
     --fee $FEE \
     --certificate-file $OPERATOR_STAKING_CERTIFICATE \
