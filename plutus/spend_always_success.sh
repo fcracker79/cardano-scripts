@@ -7,13 +7,14 @@ ALWAYS_SUCCESS_ADDRESS="addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4
 DESTINATION_ADDRESS="addr_test1qzwfepasfunj5jz32j28aaf9yyqes407z5w5aprme5x5dj9gq7ta8wx0z9suyaqx69aaknfgehcyqz3f8znft2y4zxhsg86tx9"
 CARDANO=$CARDANO_ROOT/cli.sh
 TMP_BALANCE=/tmp/balance
+COLLATERAL_TMP_BALANCE=/tmp/collateral_balance
 PLUTUS_SCRIPT='/home/mirko/dev/haskell/cardano/plutus/plutus-starter/result.plutus'
 TMP_TX=/tmp/tx
 SIGNED_TMP_TX=/tmp/signed_tx
 PROTOCOL_PARAMETERS_FILE=/tmp/protocol.json
 TESTNET_MAGIC=1097911063
-VERIFICATION_KEY_FILE=/tmp/a_key.vkey
-SIGNING_KEY_FILE=/tmp/a_key.skey
+VERIFICATION_KEY_FILE=a_key.vkey
+SIGNING_KEY_FILE=a_key.skey
 DATUM_HASH="9e1199a988ba72ffd6e9c269cadb3b53b5f360ff99f112d9b2ee30c4d74ad88b"
 DATUM=42
 
@@ -59,52 +60,67 @@ echo Max UTXO balance: $MAX_UTXO_BALANCE
 $CARDANO query protocol-parameters --testnet-magic $TESTNET_MAGIC --out-file $PROTOCOL_PARAMETERS_FILE
 CURRENT_SLOT=`$CARDANO query tip --testnet-magic $TESTNET_MAGIC | jq -r '.slot'`
 
-$CARDANO transaction build-raw \
+UTXO_TO_SEND=$MIN_UTXO
+AVAILABLE_AMOUNT=$MIN_UTXO_BALANCE
+
+#$CARDANO address key-gen \
+#    --verification-key-file $VERIFICATION_KEY_FILE \
+#    --signing-key-file $SIGNING_KEY_FILE
+
+echo Address for collateral:
+ADDRESS_FOR_COLLATERAL=`$CARDANO address build \
+    --payment-verification-key-file $VERIFICATION_KEY_FILE \
+    --testnet-magic $TESTNET_MAGIC`
+echo $ADDRESS_FOR_COLLATERAL
+read -p "Please charge this address, then press any key to continue... " -n1 -s
+echo
+
+$CARDANO query utxo \
+    --address $ADDRESS_FOR_COLLATERAL \
+    --testnet-magic $TESTNET_MAGIC | tail -n +3 | sort -k3 -nr >$COLLATERAL_TMP_BALANCE
+  
+COLLATERAL_TX_IN=""
+COLLATERAL_TOTAL_BALANCE=0
+COLLATERAL_MAX_UTXO_BALANCE=-1
+COLLATERAL_MIN_UTXO_BALANCE=-1
+COLLATERAL_MAX_UTXO=""
+COLLATERAL_MIN_UTXO=""
+while read -r utxo; do
+    IN_ADDR=`awk '{print $1 }' <<< "${utxo}"`
+    IDX=`awk '{ print $2 }' <<< "${utxo}"`
+    UTXO_BALANCE=`awk '{ print $3 }' <<< "${utxo}"`
+    COLLATERAL_TOTAL_BALANCE=$(($COLLATERAL_TOTAL_BALANCE+$UTXO_BALANCE))
+    # echo TxHash: ${IN_ADDR}#${IDX}
+    # echo ADA: ${UTXO_BALANCE}
+    CUR_TX_IN="${IN_ADDR}#${IDX}"
+    COLLATERAL_TX_IN="$COLLATERAL_TX_IN --tx-in $CUR_TX_IN"
+    if [ $COLLATERAL_MAX_UTXO_BALANCE -lt 0 ] || [ $COLLATERAL_MAX_UTXO_BALANCE -lt $UTXO_BALANCE ]; then
+        COLLATERAL_MAX_UTXO_BALANCE=$UTXO_BALANCE
+        COLLATERAL_MAX_UTXO=$CUR_TX_IN
+    fi
+    if [ $COLLATERAL_MIN_UTXO_BALANCE -lt 0 ] || [ $COLLATERAL_MIN_UTXO_BALANCE -gt $UTXO_BALANCE ]; then
+        COLLATERAL_MIN_UTXO_BALANCE=$UTXO_BALANCE
+        COLLATERAL_MIN_UTXO=$CUR_TX_IN
+    fi
+
+done < $COLLATERAL_TMP_BALANCE
+
+COLLATERAL_UTXO=$COLLATERAL_MIN_UTXO
+COLLATERAL_UTXO_BALANCE=$COLLATERAL_MIN_UTXO_BALANCE
+echo Collateral UTXO: $COLLATERAL_UTXO
+echo Collateral balance: $COLLATERAL_UTXO_BALANCE
+
+$CARDANO transaction build \
     --alonzo-era \
-    --tx-out $DESTINATION_ADDRESS+0 \
-    --invalid-hereafter $(( $CURRENT_SLOT + 10000)) \
-    --fee 0 \
     --out-file $TMP_TX \
-    --tx-in $MAX_UTXO \
+    --tx-in $UTXO_TO_SEND \
     --tx-in-script-file $PLUTUS_SCRIPT \
     --tx-in-redeemer-value 42 \
     --tx-in-datum-value 42 \
-    --tx-in-collateral $MIN_UTXO \
-    --tx-in-execution-units '(500000,14400)' \
-    --protocol-params-file $PROTOCOL_PARAMETERS_FILE
-
-# We decided to spend just the max UTXO
-TXCNT=1
-FEE=$($CARDANO transaction calculate-min-fee \
-    --tx-body-file $TMP_TX \
-    --tx-in-count $TXCNT \
-    --tx-out-count 1 \
-    --witness-count 1 \
-    --byron-witness-count 0 \
+    --tx-in-collateral $COLLATERAL_UTXO \
+    --protocol-params-file $PROTOCOL_PARAMETERS_FILE \
     --testnet-magic $TESTNET_MAGIC \
-    --protocol-params-file $PROTOCOL_PARAMETERS_FILE | awk '{ print $1 }')
-
-TX_OUT=$(($MAX_UTXO_BALANCE-$FEE))
-echo Fee $FEE
-echo Tx out $TX_OUT
-
-$CARDANO transaction build-raw \
-    --alonzo-era \
-    --tx-out $DESTINATION_ADDRESS+$TX_OUT \
-    --invalid-hereafter $(( $CURRENT_SLOT + 10000)) \
-    --fee $FEE \
-    --out-file $TMP_TX \
-    --tx-in $MAX_UTXO \
-    --tx-in-script-file $PLUTUS_SCRIPT \
-    --tx-in-redeemer-value 42 \
-    --tx-in-datum-value 42 \
-    --tx-in-collateral $MIN_UTXO \
-    --tx-in-execution-units '(500000,14400)' \
-    --protocol-params-file $PROTOCOL_PARAMETERS_FILE
-
-$CARDANO stake-address key-gen \
-    --verification-key-file $VERIFICATION_KEY_FILE \
-    --signing-key-file $SIGNING_KEY_FILE
+    --change-address $DESTINATION_ADDRESS
 
 $CARDANO transaction sign \
     --tx-body-file $TMP_TX \
