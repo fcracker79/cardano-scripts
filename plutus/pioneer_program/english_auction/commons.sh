@@ -24,3 +24,6 @@ USER2_ADDRESS_FILE=data/user2/payment.addr
 USER3_VERIFICATION_KEY_FILE=data/user3/payment.vkey
 USER3_SIGNING_KEY_FILE=data/user3/payment.skey
 USER3_ADDRESS_FILE=data/user3/payment.addr
+
+PLUTUS_CONTRACT_FILE=data/english_auction.plutus
+PLUTUS_CONTRACT_ADDRESS_FILE=data/english_auction.addr
