@@ -8,8 +8,8 @@ PAYMENT_ADDRESS=`cat $PAYMENT_ADDRESS_FILE`
 
 TOTAL_BALANCE=0
 
-echo "Please charge address $PAYMENT_ADDRESS with at least 1 ADA"
-while [ $TOTAL_BALANCE -lt 2000000 ]; do
+echo "Please charge address $PAYMENT_ADDRESS with at least 5 ADA"
+while [ $TOTAL_BALANCE -lt 5000000 ]; do
     TOTAL_BALANCE=0
     $CARDANO query utxo \
         --address $PAYMENT_ADDRESS \

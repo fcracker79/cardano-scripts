@@ -17,4 +17,5 @@ POLICY_ID_FILE=data/policy_id
 TMP_BALANCE=data/balance
 METADATA_FILE=data/metadata.json
 TOKEN_NAME=MIRKOCOIN
-MINTING_TX_FILE=matx.raw
+MINTING_TX_FILE=data/matx.raw
+SIGNED_MINTING_TX_FILE=data/matx.signed
